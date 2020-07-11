@@ -1,0 +1,7 @@
+6: A E I N R S
+5: O T
+4: M
+3: B C D F G H L P U W Y 5 0
+2: 6 9
+3: J K Q V X Z 1 2 3 4 7 8 
+1: / % . * $ !

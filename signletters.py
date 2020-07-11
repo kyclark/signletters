@@ -2,9 +2,13 @@
 """Spell messages with limited letters"""
 
 import argparse
+import io
 import os
 import re
 from collections import Counter
+from typing import TextIO, Dict, NewType
+
+LetterFreq = NewType('LetterFreq', Dict[str, int])
 
 
 # --------------------------------------------------
@@ -15,20 +19,18 @@ def get_args():
         description='Spell messages with limited letters',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('text',
+    parser.add_argument('-t',
+                        '--text',
                         metavar='str',
-                        help='Message to spell')
+                        help='Input message or file',
+                        nargs='+')
 
-    parser.add_argument('-s',
-                        '--sub',
-                        help='Substitute numbers',
-                        action='store_true')
+    parser.add_argument('-l',
+                        '--letters',
+                        help='File with letter frequencies',
+                        type=argparse.FileType('rt'))
 
     args = parser.parse_args()
-
-    if os.path.isfile(args.text):
-        args.text = open(args.text).read().rstrip()
-
 
     return args
 
@@ -37,28 +39,67 @@ def get_args():
 def main():
     """Make a jazz noise here"""
 
-    # 12 each - A E I N O R S
-    # 8 each - L T (red) 5 6
-    # 6 each - B C D F G H J K M P U W Y
-    # 4 each - Q V X Z (red) 1 2 3 4 7 8 0 ! * .
-    # 2 each - . - ! / % & (red) $ →
-
     args = get_args()
-    letters = {'A': 12, 'B': 6, 'C': 6, 'D': 6, 'E': 12, 'F': 6, 'G': 6,
-               'H': 6, 'I': 12, 'J': 6, 'K': 6, 'L': 8, 'M': 6, 'N': 12,
-               'O': 12, 'P': 6, 'Q': 4, 'R': 12, 'S': 12, 'T': 8, 'U': 6,
-               'V': 4, 'W': 6, 'X': 4, 'Y': 6, 'Z': 4, '1': 4, '2': 4, '3': 4,
-               '5': 4, '6': 4, '7': 4, '8': 4, '9': 4, '0': 4, '!': 4, '*': 4,
-               '.': 4, '-': 2, '!': 2, '/': 2, '%': 2, '&': 2, '$': 2}
+    letters = read_letters(args.letters)
+
+    for text in args.text:
+        if os.path.isfile(text):
+            text = open(text).read().rstrip()
+
+        text = text.upper()
+        print(f'{"OK" if check_text(text, letters) else "Nope":4}: {text}')
 
 
-    chars = ''.join(letters.keys()).replace('-', '') + '-' # put - at the end
-    pattern = '[^' + chars + ']' # anything not these
-    text = re.sub(pattern, '', args.text.upper())
-    print(text)
-    freq = Counter(text)
-    print(freq)
-    print('OK' if all([letters[c] >= freq[c] for c in text]) else 'No')
+# --------------------------------------------------
+def read_letters(fh: TextIO) -> LetterFreq:
+    """Read the letter frequencies from a file"""
+
+    freqs = {}
+    for line in fh:
+        if match := re.match(r'(\d+)\s*:\s*(.+)', line):
+            num = int(match.group(1))
+            for char in match.group(2).split():
+                freqs[char] = num
+
+    return LetterFreq(freqs)
+
+
+# --------------------------------------------------
+def test_read_letters() -> None:
+    """Test read_letters"""
+
+    t1 = io.StringIO('12: A E\n5: B C')
+    assert read_letters(t1) == LetterFreq({'A': 12, 'B': 5, 'C': 5, 'E': 12})
+
+    t2 = io.StringIO('6: X Y\n3: I U')
+    assert read_letters(t2) == LetterFreq({'I': 3, 'U': 3, 'X': 6, 'Y': 6})
+
+
+# --------------------------------------------------
+def check_text(text: str, letters: LetterFreq) -> bool:
+    """Check the chars in text with letters"""
+
+    # put - at the end
+    chars = ''.join(letters.keys()).replace('-', '') + '-'
+
+    # anything not these
+    pattern = '[^' + chars + ']'
+
+    check = re.sub(pattern, '', text)
+    freq = Counter(check)
+    return all([letters[char] >= freq[char] for char in check])
+
+
+# --------------------------------------------------
+def test_check_test() -> None:
+    """Test check_test"""
+
+    freq = LetterFreq({'A': 3, 'B': 1})
+    assert check_text('A B', freq)
+    assert check_text('A AB', freq)
+    assert check_text('AA AB', freq)
+    assert not check_text('A AAA B', freq)
+    assert not check_text('AAA BB', freq)
 
 
 # --------------------------------------------------
